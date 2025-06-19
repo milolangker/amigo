@@ -66,6 +66,11 @@ class Exposure(zdx.Base):
         self.calibrator = bool(file[0].header["IS_PSF"])
         self.filename = "_".join(file[0].header["FILENAME"].split("_")[:4])
 
+    def add_badpix(self, badpix):
+        badpix = self.badpix | badpix
+        support = np.where(~badpix)
+        return self.set(["badpix", "support"], [badpix, support])
+
     def print_summary(self):
         print(
             f"File {self.key}\n"
@@ -147,6 +152,7 @@ class ModelFit(Exposure):
     fit_reflectivity: bool = eqx.field(static=True)
     fit_bias: bool = eqx.field(static=True)
     validator: bool = eqx.field(static=True)
+    use_cov: bool = eqx.field(static=True)
 
     def __init__(
         self,
@@ -155,13 +161,26 @@ class ModelFit(Exposure):
         fit_one_on_fs=False,
         fit_bias=False,
         validator=False,
+        use_cov=False,
+        only_diag=False,
         **kwargs,
     ):
         self.fit_one_on_fs = fit_one_on_fs
         self.fit_reflectivity = fit_reflectivity
         self.fit_bias = fit_bias
         self.validator = bool(validator)
+        self.use_cov = bool(use_cov)
         super().__init__(*args, **kwargs)
+
+        if not bool(use_cov):
+            self.cov = self.cov * np.eye(len(self.slopes))[..., None, None]
+
+        if only_diag:
+            n = self.nslopes
+            mask = np.eye(n, dtype=bool)
+            mask |= np.eye(n, k=1, dtype=bool)
+            mask |= np.eye(n, k=-1, dtype=bool)
+            self.cov = self.cov * mask[..., None, None]
 
     def mv_zscore(self, model, return_im=False):
         slopes = self(model)
@@ -298,7 +317,8 @@ class ModelFit(Exposure):
         wavels, filt_weights = model.filters[self.filter]
         xs = np.linspace(-1, 1, len(wavels), endpoint=True)
         spectra_slopes = 1 + model.get(self.map_param("spectra")) * xs
-        weights = filt_weights * spectra_slopes  # * wavels
+        weights = filt_weights * spectra_slopes
+        weights = np.where(weights < 0, 0.0, weights)
         return wavels, weights / weights.sum()
 
     def model_wfs(self, model):
@@ -330,6 +350,8 @@ class ModelFit(Exposure):
         # NOTE: This bias estimate is inadequate becuase it doesnt correctly account
         # for the non-linear component of the gain. This ultimately should be properly
         # calibrated, WITH the gain term using the ramp rather than slope data.
+        #
+        # TODO: USe quadratic formula to get correct non-linear inversion
         true_bias = model.read.gain * self.ramp[0]
         bias = true_bias - (illum_small / self.ngroups)
 
@@ -420,10 +442,10 @@ class SplineVisFit(PointFit):
 class FlatFit(ModelFit):
     polynomial_powers: np.ndarray
 
-    def __init__(self, file, fit_one_on_fs=False):
+    def __init__(self, file, fit_one_on_fs=False, **kwargs):
         file[0].header["IS_PSF"] = False
 
-        super().__init__(file)
+        super().__init__(file, **kwargs)
         self.star = "NIS_LAMP"
         self.observation = "FLAT"
         self.program = "FLAT"

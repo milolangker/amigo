@@ -25,10 +25,9 @@ def process_calslope(
     input_dir,
     output_dir,
     sigma=3.0,
-    clean_dir=True,
-    flat=False,
     correct_ADC=True,
-    use_cov=False,
+    flat=False,
+    clean_dir=True,
 ):
     if input_dir[-1] != "/":
         input_dir += "/"
@@ -76,16 +75,12 @@ def process_calslope(
             print("Only one group, skipping...")
             continue
 
-        # Get the data (cast to float so we can nan the bad pixels)
-        data = np.array(file["SCI"].data, float)
+        # # Get the data (cast to float so we can nan the bad pixels)
+        # data = np.array(file["SCI"].data, float)
 
         # Get the filter and ngroups (for flat field files)
         filt = file["PRIMARY"].header["FILTER"]
         ngroups = file["PRIMARY"].header["NGROUPS"]
-
-        # Copying header information
-        sci_header = file["SCI"].header.copy(strip=True)
-        sci_header.remove("EXTNAME")
 
         # Close the file
         file.close()
@@ -106,27 +101,117 @@ def process_calslope(
 
         # Open new file and process the data
         file = fits.open(file_calslope)
-        file = process_data(
-            file, data, sigma=sigma, correct_ADC=correct_ADC, flat=flat, use_cov=use_cov
-        )
+        file = process_file(file, sigma=sigma, correct_ADC=correct_ADC, flat=flat)
 
-        # Remove the redundant or undesired extensions
-        del file["SCI"]
-        del file["GROUP"]
-        del file["INT_TIMES"]
-
-        # Update the various headers
-        file[0].header["NINTS"] = int(data.shape[0])
         file[0].header["FILENAME"] = file_name
-        file[0].header["SIGMA"] = sigma
-        file[0].header["ADC_CAL"] = correct_ADC
-        file[0].header.extend(sci_header)  # Copy the science header
+
+        # # Remove the redundant or undesired extensions
+        # del file["SCI"]
+        # del file["GROUP"]
+        # del file["INT_TIMES"]
+
+        # # Update the various headers
+        # file[0].header["NINTS"] = int(data.shape[0])
+        # file[0].header["FILENAME"] = file_name
+        # file[0].header["SIGMA"] = sigma
+        # file[0].header["ADC_CAL"] = correct_ADC
+        # file[0].header.extend(sci_header)  # Copy the science header
 
         # Save as calslope
         file.writeto(file_calslope, overwrite=True)
         file.close()
 
     print("Done\n")
+
+
+def process_file(file, sigma=3.0, min_supp=5, correct_ADC=True, flat=False):
+    # # Get the read noise to populate the covariance matrix
+    # read_std = np.load(pkg.resource_filename(__name__, "data/SUB80_readnoise.npy"))
+
+    # get the data and clean it
+    raw_ramps = np.array(file["SCI"].data, float)
+    ramps, slopes = clean_data(raw_ramps, sigma=sigma, correct_ADC=correct_ADC, flat=flat)
+
+    # Calculate the ramp mean and covariance
+    ramps, ramp_cov, ramp_support = calc_mean_and_cov(ramps)  # , read_std)
+
+    # Calculate the slope mean and covariance
+    slopes, slope_cov, slope_support = calc_mean_and_cov(slopes)  # , read_std)
+
+    # Calculate the bad-pixels
+    support_mask = (slope_support.min(0) < min_supp) | (ramp_support.min(0) < min_supp)
+    nan_mask = (
+        np.isnan(ramps).sum((0))
+        | np.isnan(slopes).sum((0))
+        | np.isnan(ramp_cov).sum((0, 1))
+        | np.isnan(slope_cov).sum((0, 1))
+    )
+
+    # Get the bad pixel mask
+    badpix = np.load(pkg.resource_filename(__name__, "data/badpix.npy"))
+    badpix = badpix.at[:+5, :].set(True)
+    badpix = badpix.at[-1:, :].set(True)
+    badpix = badpix.at[:, :+1].set(True)
+    badpix = badpix.at[:, -1:].set(True)
+    badpix = (badpix | support_mask | nan_mask).astype(int)
+
+    # if not use_cov:
+    #     ramp_cov *= np.eye(ramp_cov.shape[0])[..., None, None]
+    #     slope_cov *= np.eye(slope_cov.shape[0])[..., None, None]
+
+    # Save the Outputs
+    header = fits.Header()
+    header["EXTNAME"] = "RAMP"
+    file.append(fits.ImageHDU(data=ramps, header=header))
+
+    header = fits.Header()
+    header["EXTNAME"] = "RAMP_COV"
+    file.append(fits.ImageHDU(data=ramp_cov, header=header))
+
+    header = fits.Header()
+    header["EXTNAME"] = "RAMP_SUP"
+    file.append(fits.ImageHDU(data=ramp_support, header=header))
+
+    header = fits.Header()
+    header["EXTNAME"] = "SLOPE"
+    file.append(fits.ImageHDU(data=slopes, header=header))
+
+    header = fits.Header()
+    header["EXTNAME"] = "SLOPE_COV"
+    file.append(fits.ImageHDU(data=slope_cov, header=header))
+
+    header = fits.Header()
+    header["EXTNAME"] = "SLOPE_SUP"
+    file.append(fits.ImageHDU(data=slope_support, header=header))
+
+    header = fits.Header()
+    header["EXTNAME"] = "BADPIX"
+    file.append(fits.ImageHDU(data=badpix, header=header))
+
+    # Move the ASDF extention to the end
+    file.append(file.pop("ASDF"))
+
+    # Update sci header information
+    sci_header = file["SCI"].header.copy(strip=True)
+    sci_header.remove("EXTNAME")
+    file[0].header.extend(sci_header)  # Copy the science header
+
+    # Update the various headers
+    file[0].header["NINTS"] = int(raw_ramps.shape[0])
+    file[0].header["SIGMA"] = sigma
+    file[0].header["ADC_CAL"] = correct_ADC
+
+    # Remove the redundant or undesired extensions
+    del file["SCI"]
+    del file["GROUP"]
+    del file["INT_TIMES"]
+
+    return file
+
+
+def rebuild_ramps(data, slopes):
+    clean_ramp = np.cumsum(slopes, axis=1)
+    return np.concatenate([data[:, :1], data[:, :1] + clean_ramp], axis=1)
 
 
 def apply_sigma_clip(data, sigma=5.0, axis=0):
@@ -144,12 +229,7 @@ def apply_sigma_clip(data, sigma=5.0, axis=0):
     return data.at[np.where(data == -1.0)].set(np.nan)
 
 
-def rebuild_ramps(data, slopes):
-    clean_ramp = np.cumsum(slopes, axis=1)
-    return np.concatenate([data[:, :1], data[:, :1] + clean_ramp], axis=1)
-
-
-def process_data(file, data, sigma=3.0, correct_ADC=True, flat=False, use_cov=False):
+def clean_data(ramps, sigma=3.0, correct_ADC=True, flat=False):
     """
     Processes the data and saves the outputs to the file
 
@@ -161,28 +241,30 @@ def process_data(file, data, sigma=3.0, correct_ADC=True, flat=False, use_cov=Fa
     # ADC correction
     if correct_ADC:
         amp, period = 2, 1024
-        data = data - amp * np.sin(2 * np.pi * np.nanmean(data, axis=0) / period)
+        ramps = ramps - amp * np.sin(2 * np.pi * np.nanmean(ramps, axis=0) / period)
 
     if flat:
-        slopes = np.diff(data, axis=1)
+        slopes = np.diff(ramps, axis=1)
         slopes = apply_sigma_clip(slopes, axis=(0, 1, 2, 3), sigma=sigma)
-        data = rebuild_ramps(data, slopes)
+        ramps = rebuild_ramps(ramps, slopes)
     else:
-        data = apply_sigma_clip(data, axis=0, sigma=sigma)
+        ramps = apply_sigma_clip(ramps, axis=0, sigma=sigma)
 
     # Sigma clip the slopes
-    slopes = np.diff(data, axis=1)
+    slopes = np.diff(ramps, axis=1)
     slopes = apply_sigma_clip(slopes, axis=0, sigma=sigma)
 
     # Rebuild the data with the nan'd values cut upper ramps
-    ramps = rebuild_ramps(data, slopes)
+    ramps = rebuild_ramps(ramps, slopes)
     slopes = np.diff(ramps, axis=1)
 
-    # Return the values
-    return update_headers(file, ramps, slopes, use_cov=use_cov)
+    return ramps, slopes
+
+    # # Return the values
+    # return update_headers(file, ramps, slopes)
 
 
-def calc_mean_and_cov(data, read_std):
+def calc_mean_and_cov(data):  # , read_std):
     # Get the pixel support and mean
     support = np.asarray(~np.isnan(data), int).sum(axis=0)
     mean = np.nanmean(data, axis=0)
@@ -218,57 +300,3 @@ def make_psd(A, eps=1e-6):
 
     eigvals = np.clip(eigvals, eps, None)  # Ensure all eigenvalues are >= eps
     return eigvecs @ np.diag(eigvals) @ eigvecs.T  # Reconstruct matrix
-
-
-def update_headers(file, ramps, slopes, min_supp=5, use_cov=False):
-    # Get the read noise to populate the covariance matrix
-    read_std = np.load(pkg.resource_filename(__name__, "data/SUB80_readnoise.npy"))
-
-    # Calculate the ramp mean and covariance
-    ramp, ramp_cov, ramp_support = calc_mean_and_cov(ramps, read_std)
-
-    # Calculate the slope mean and covariance
-    slopes, slope_cov, slope_support = calc_mean_and_cov(slopes, read_std)
-
-    if not use_cov:
-        ramp_cov *= np.eye(ramp_cov.shape[0])[..., None, None]
-        slope_cov *= np.eye(slope_cov.shape[0])[..., None, None]
-
-    # Calculate the bad pixel mask
-    badpix = np.load(pkg.resource_filename(__name__, "data/badpix.npy"))
-    badpix = badpix.at[:5].set(True)
-    badpix = (badpix | (slope_support.min(0) < min_supp)).astype(int)
-
-    # Save the Outputs
-    header = fits.Header()
-    header["EXTNAME"] = "RAMP"
-    file.append(fits.ImageHDU(data=ramp, header=header))
-
-    header = fits.Header()
-    header["EXTNAME"] = "RAMP_COV"
-    file.append(fits.ImageHDU(data=ramp_cov, header=header))
-
-    header = fits.Header()
-    header["EXTNAME"] = "RAMP_SUP"
-    file.append(fits.ImageHDU(data=ramp_support, header=header))
-
-    header = fits.Header()
-    header["EXTNAME"] = "SLOPE"
-    file.append(fits.ImageHDU(data=slopes, header=header))
-
-    header = fits.Header()
-    header["EXTNAME"] = "SLOPE_COV"
-    file.append(fits.ImageHDU(data=slope_cov, header=header))
-
-    header = fits.Header()
-    header["EXTNAME"] = "SLOPE_SUP"
-    file.append(fits.ImageHDU(data=slope_support, header=header))
-
-    header = fits.Header()
-    header["EXTNAME"] = "BADPIX"
-    file.append(fits.ImageHDU(data=badpix, header=header))
-
-    # Move the ASDF extention to the end
-    file.append(file.pop("ASDF"))
-
-    return file

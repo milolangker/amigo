@@ -522,6 +522,8 @@ class NonLinearRamp(zdx.Base):
         # Evolve the charge
         charges = [charge]
         if self.bleed:
+
+            # TODO: Make this a lax.carry loop!!
             for _ in range(self.time_steps):
                 kernels = self.kernel_model(charge, sensitivity)
                 charge += apply_kernels_stride(illuminance, kernels)

@@ -312,6 +312,7 @@ def analyse_vis(
     perc = jsp.stats.norm.cdf(n_sigma)
     contrast_clipped = np.clip(contrast_im, 0, min_flux)  # clip to min_flux
     ruffio_im = ruffio_upperlimit(contrast_clipped, sigma_im, perc)
+    # ruffio_im = ruffio_upperlimit(contrast_im, sigma_im, perc)
 
     # Radial Ruffio upper limits
     avg_fn = lambda ruffio, **kwargs: azimuthalAverage(
