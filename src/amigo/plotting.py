@@ -10,7 +10,7 @@ inferno = colormaps["inferno"]
 seismic = colormaps["seismic"]
 
 
-def plot_losses(losses, start, stop=-1):
+def plot_losses(losses, start, stop=-1, save_path=None,):
     plt.figure(figsize=(16, 5))
     plt.subplot(1, 2, 1)
     plt.title("Full Loss")
@@ -25,7 +25,11 @@ def plot_losses(losses, start, stop=-1):
     plt.plot(np.arange(start, start + n), last_losses)
 
     plt.tight_layout()
-    plt.show()
+
+    if save_path is not None:
+        plt.savefig(save_path + "losses.png")
+    else:
+        plt.show()
 
 
 def summarise_fit(
@@ -39,6 +43,7 @@ def summarise_fit(
     full_bias=False,
     aberrations=False,
     pow=0.5,
+    save_path=None,
     # loglike_fn=None,
 ):
 
@@ -105,7 +110,10 @@ def summarise_fit(
         ax2.set_ylim(0)
 
         plt.tight_layout()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + f"{exposure.key}.png")
+        else:
+            plt.show()
 
         if residuals:
             norm = colors.PowerNorm(gamma=pow, vmin=-vmin, vmax=vmax)
@@ -127,7 +135,10 @@ def summarise_fit(
             plt.colorbar()
 
             plt.tight_layout()
-            plt.show()
+            if save_path is not None:
+                plt.savefig(save_path + "residuals.png")
+            else:
+                plt.show()
 
         if histograms:
 
@@ -156,7 +167,10 @@ def summarise_fit(
             plt.colorbar()
 
             plt.tight_layout()
-            plt.show()
+            if save_path is not None:
+                plt.savefig(save_path + "histograms.png")
+            else:
+                plt.show()
 
     if flat_field:
         plt.figure(figsize=(15, 4))
@@ -181,7 +195,10 @@ def summarise_fit(
         plt.title("Flat Field Histogram")
         plt.hist(FF.flatten(), bins=100)
         # plt.xlim(0, 2)
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "ff.png")
+        else:
+            plt.show()
 
     if full_bias:
         coeffs = model.one_on_fs[exposure.get_key("one_on_fs")]
@@ -209,7 +226,10 @@ def summarise_fit(
         plt.ylabel("Group")
 
         plt.tight_layout()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "full_bias.png")
+        else:
+            plt.show()
 
     if aberrations:
         # Get the AMI mask and applied mask
@@ -255,7 +275,10 @@ def summarise_fit(
         # plt.colorbar(label="OPD (nm)")
 
         plt.tight_layout()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "aberrations.png")
+        else:
+            plt.show()
 
     if up_the_ramp:
         ncols = 4
@@ -272,7 +295,10 @@ def summarise_fit(
             v = np.nanmax(np.abs(residual[i]))
             plt.imshow(residual[i], cmap=seismic, vmin=-v, vmax=v)
             plt.colorbar()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "uptheramp.png")
+        else:
+            plt.show()
 
     if up_the_ramp_norm:
         ncols = 4
@@ -289,10 +315,13 @@ def summarise_fit(
             v = np.nanmax(np.abs(norm_res_slope[i]))
             plt.imshow(norm_res_slope[i], cmap=seismic, vmin=-v, vmax=v)
             plt.colorbar()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "uptherampnorm.png")
+        else:
+            plt.show()
 
 
-def plot(history, exposures=None, key_fn=None, ignore=[], start=0, end=-1):
+def plot(history, exposures=None, key_fn=None, ignore=[], start=0, end=-1, save_path=None):
 
     params = list(history.params.keys())
     params_in = [param for param in params if param not in ignore]
@@ -317,7 +346,10 @@ def plot(history, exposures=None, key_fn=None, ignore=[], start=0, end=-1):
         _plot_ax(leaf, ax, param, exposures, key_fn, start=start, end=end)
 
         plt.tight_layout()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + f"params_{i}.png")
+        else:
+            plt.show()
 
 
 def _format_leaf(leaf, per_exp=False, keys=None):
