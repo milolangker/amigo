@@ -28,6 +28,7 @@ def plot_losses(losses, start, stop=-1, save_path=None,):
 
     if save_path is not None:
         plt.savefig(save_path + "losses.png")
+        plt.close()
     else:
         plt.show()
 
@@ -112,6 +113,7 @@ def summarise_fit(
         plt.tight_layout()
         if save_path is not None:
             plt.savefig(save_path + f"{exposure.key}.png")
+            plt.close()
         else:
             plt.show()
 
@@ -137,6 +139,7 @@ def summarise_fit(
             plt.tight_layout()
             if save_path is not None:
                 plt.savefig(save_path + "residuals.png")
+                plt.close()
             else:
                 plt.show()
 
@@ -169,6 +172,7 @@ def summarise_fit(
             plt.tight_layout()
             if save_path is not None:
                 plt.savefig(save_path + "histograms.png")
+                plt.close()
             else:
                 plt.show()
 
@@ -197,6 +201,7 @@ def summarise_fit(
         # plt.xlim(0, 2)
         if save_path is not None:
             plt.savefig(save_path + "ff.png")
+            plt.close()
         else:
             plt.show()
 
@@ -228,6 +233,7 @@ def summarise_fit(
         plt.tight_layout()
         if save_path is not None:
             plt.savefig(save_path + "full_bias.png")
+            plt.close()
         else:
             plt.show()
 
@@ -277,6 +283,7 @@ def summarise_fit(
         plt.tight_layout()
         if save_path is not None:
             plt.savefig(save_path + "aberrations.png")
+            plt.close()
         else:
             plt.show()
 
@@ -297,6 +304,7 @@ def summarise_fit(
             plt.colorbar()
         if save_path is not None:
             plt.savefig(save_path + "uptheramp.png")
+            plt.close()
         else:
             plt.show()
 
@@ -317,6 +325,7 @@ def summarise_fit(
             plt.colorbar()
         if save_path is not None:
             plt.savefig(save_path + "uptherampnorm.png")
+            plt.close()
         else:
             plt.show()
 
@@ -348,6 +357,7 @@ def plot(history, exposures=None, key_fn=None, ignore=[], start=0, end=-1, save_
         plt.tight_layout()
         if save_path is not None:
             plt.savefig(save_path + f"params_{i}.png")
+            plt.close()
         else:
             plt.show()
 
