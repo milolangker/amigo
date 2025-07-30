@@ -513,14 +513,14 @@ def _plot_param(ax, arr, param, start=0, end=-1, **kwargs):
             ax.set(ylabel="Jitter Magnitude (mas)")
 
         case "amplitudes":
-            norm_amplitudes = arr
+            norm_amplitudes = arr - arr[0]
             ax.plot(epochs, norm_amplitudes, **kwargs)
-            ax.set(ylabel="Visibility Amplitude")
+            ax.set(ylabel="$\Delta$ Visibility Amplitude")
 
         case "phases":
-            norm_phases = dlu.rad2deg(arr)
+            norm_phases = dlu.rad2deg(arr - arr[0])
             ax.plot(epochs, norm_phases, **kwargs)
-            ax.set(ylabel="Visibility Phase (deg)")
+            ax.set(ylabel="$\Delta$ Visibility Phase (deg)")
 
         case "separations":
             ax.plot(epochs, arr, **kwargs)
