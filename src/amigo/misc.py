@@ -192,7 +192,7 @@ def interp(image, knot_coords, sample_coords, method="linear", fill=0.0):
 
 
 @eqx.filter_jit
-def interp_ramp(ramp, ngroups, method="cubic2", extrap=True):
+def interp_ramp(ramp, ngroups, method="cubic", extrap=True):
     # Assumes that the ramp time samples are from 0 to 1.
     ts = np.linspace(0, 1, len(ramp))
     groups = (np.arange(ngroups) + 1) / ngroups

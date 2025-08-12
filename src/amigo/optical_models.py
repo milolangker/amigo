@@ -587,7 +587,7 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
         # Upsample and then downsample to get more PSF precision
         knots = dlu.pixel_coords(psf_npixels, 2)
         sample_coords = dlu.pixel_coords(psf_npixels * self.psf_upsample, 2)
-        psf = interp(wf.psf, knots, sample_coords, "cubic2")
+        psf = interp(wf.psf, knots, sample_coords, "cubic")
         psf = dlu.downsample(psf, self.psf_upsample, mean=True)
         psf = np.where(psf < 0, 0.0, psf)
         wf = wf.set("amplitude", np.sqrt(psf))
