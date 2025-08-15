@@ -544,6 +544,10 @@ def _plot_param(ax, arr, param, start=0, end=-1, **kwargs):
             ax.plot(epochs, norm_weights, **kwargs)
             ax.set(ylabel="$\Delta$ Convolutional Output Amplitude")
 
+        case "log_dist":
+            ax.plot(epochs, arr, alpha=0.5, **kwargs)
+            ax.set(ylabel="Log Distribution")
+
         case _:
             # print(f"No formatting function for {param}")
             ax.plot(epochs, arr - arr[0], **kwargs)
