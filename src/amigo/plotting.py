@@ -3,6 +3,8 @@ import jax.scipy as jsp
 import dLux.utils as dlu
 import matplotlib.pyplot as plt
 from matplotlib import colormaps, colors
+import numpy as onp
+
 
 # from .stats import posterior
 
@@ -545,6 +547,16 @@ def _plot_param(ax, arr, param, start=0, end=-1, **kwargs):
             ax.set(ylabel="$\Delta$ Convolutional Output Amplitude")
 
         case "log_dist":
+
+            # reducing plotting load
+            total = arr.shape[0]
+            maxn = 100
+            if total > maxn:
+                idxs = onp.random.choice(np.arange(total), size=maxn, replace=False)
+                idxs = np.sort(idxs)
+                arr = arr[idxs, :]
+                epochs = epochs[idxs]
+
             ax.plot(epochs, arr, alpha=0.5, **kwargs)
             ax.set(ylabel="Log Distribution")
 
