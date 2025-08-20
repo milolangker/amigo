@@ -23,7 +23,7 @@ class Resample(dl.layers.detector_layers.DetectorLayer):
         rot_coords = dlu.rotate_coords(coords, angle)
         sample_coords = rot_coords * np.array([1.0, self.anisotropy])[:, None, None]
         # TODO: Test different interpolation methods
-        return PSF.set("data", interp(PSF.data, coords, sample_coords, "cubic"))
+        return PSF.set("data", interp(PSF.data, coords, sample_coords, "cubic2"))
 
 
 def gaussian_kernel(kernel_size, cov, pixel_scale, oversample):
