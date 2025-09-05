@@ -347,8 +347,11 @@ def plot(history, exposures=None, key_fn=None, ignore=[], start=0, end=-1, save_
 
         ax = plt.subplot(1, 2, 2)
         if i + 1 == len(params_in):
-            plt.tight_layout()
-            plt.show()
+            if save_path is not None:
+                plt.savefig(save_path + f"params_{i}.png")
+                plt.close()
+            else:
+                plt.show()
             break
 
         param = params_in[i + 1]
