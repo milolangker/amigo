@@ -5,7 +5,9 @@ import numpy as onp
 from jax import vmap
 from astropy.io import fits
 from astropy.stats import sigma_clip
-import pkg_resources as pkg
+
+# import pkg_resources as pkg
+from importlib import resources
 from .misc import tqdm
 
 
@@ -127,6 +129,7 @@ def process_calslope(
 def process_file(file, sigma=3.0, min_supp=5, correct_ADC=True, flat=False):
     # # Get the read noise to populate the covariance matrix
     # read_std = np.load(pkg.resource_filename(__name__, "data/SUB80_readnoise.npy"))
+    # read_std = np.load(resources.files(__package__) / "data" / "SUB80_readnoise.npy")
 
     # get the data and clean it
     raw_ramps = np.array(file["SCI"].data, float)
@@ -148,7 +151,8 @@ def process_file(file, sigma=3.0, min_supp=5, correct_ADC=True, flat=False):
     )
 
     # Get the bad pixel mask
-    badpix = np.load(pkg.resource_filename(__name__, "data/badpix.npy"))
+    # badpix = np.load(pkg.resource_filename(__name__, "data/badpix.npy"))
+    badpix = np.load(resources.files(__package__) / "data" / "badpix.npy")
     badpix = badpix.at[:+5, :].set(True)
     badpix = badpix.at[-1:, :].set(True)
     badpix = badpix.at[:, :+1].set(True)

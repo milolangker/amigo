@@ -1,4 +1,5 @@
-import pkg_resources as pkg
+# import pkg_resources as pkg
+from importlib import resources
 import equinox as eqx
 import jax.numpy as np
 import dLux as dl
@@ -137,7 +138,8 @@ class ReadModel(LayeredDetector):
         layers = []
         layers.append(("read", DarkCurrent(dark_current)))
         if ipc:
-            file_path = pkg.resource_filename(__name__, "data/SUB80_ipc.npy")
+            # file_path = pkg.resource_filename(__name__, "data/SUB80_ipc.npy")
+            file_path = resources.files(__package__) / "data" / "SUB80_ipc.npy"
             ipc = IPC(np.load(file_path))
         else:
             ipc = None

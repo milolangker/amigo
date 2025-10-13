@@ -3,7 +3,9 @@ import jax.scipy as jsp
 import numpy as onp
 from scipy.ndimage import center_of_mass
 from scipy.interpolate import griddata
-import pkg_resources as pkg
+
+# import pkg_resources as pkg
+from importlib import resources
 import interpax as ipx
 import equinox as eqx
 
@@ -126,7 +128,8 @@ def calc_throughput(filt, nwavels=9):
         raise ValueError("Supported filters are F380M, F430M, F480M, F277W.")
 
     # filter_path = os.path.join()
-    file_path = pkg.resource_filename(__name__, f"/data/filters/{filt}.dat")
+    # file_path = pkg.resource_filename(__name__, f"/data/filters/{filt}.dat")
+    file_path = resources.files(__package__) / "data" / "filters" / f"{filt}.dat"
     wl_array, throughput_array = np.array(onp.loadtxt(file_path, unpack=True))
 
     edges = np.linspace(wl_array.min(), wl_array.max(), nwavels + 1)

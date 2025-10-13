@@ -2,7 +2,9 @@ import jax.numpy as np
 import jax.scipy as jsp
 from jax import vmap, lax
 import equinox as eqx
-import pkg_resources as pkg
+
+# import pkg_resources as pkg
+from importlib import resources
 
 
 # Noise modelling
@@ -64,7 +66,8 @@ def covariance_model(model, exposure):
     slopes = exposure(model)
 
     # Pixel read noise
-    read_std = np.load(pkg.resource_filename(__name__, "data/SUB80_readnoise.npy"))
+    # read_std = np.load(pkg.resource_filename(__name__, "data/SUB80_readnoise.npy"))
+    read_std = np.load(resources.files(__package__) / "data" / "SUB80_readnoise.npy")
     # read_std = np.load("../../amigo/src/amigo/data/SUB80_readnoise.npy")
     read_var = read_std**2
 

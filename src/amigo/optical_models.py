@@ -1,4 +1,5 @@
-import pkg_resources as pkg
+# import pkg_resources as pkg
+from importlib import resources
 import equinox as eqx
 import zodiax as zdx
 from jax import Array, vmap
@@ -131,7 +132,8 @@ def calc_basis(coords, f2f, radial_orders, polike=False):
 
 
 def get_initial_holes(diameter=6.603464, npixels=1024, x_shift=21, y_shift=-13):
-    file_path = pkg.resource_filename(__name__, "data/AMI_holes.npy")
+    # file_path = pkg.resource_filename(__name__, "data/AMI_holes.npy")
+    file_path = resources.files(__package__) / "data" / "AMI_holes.npy"
     shift = np.array([x_shift, y_shift]) * (diameter / npixels)
     return np.load(file_path) + shift[None, :]
 

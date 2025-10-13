@@ -5,7 +5,9 @@ import dLux as dl
 import dLux.utils as dlu
 import jax.numpy as np
 from jax import lax, vmap
-import pkg_resources as pkg
+
+# import pkg_resources as pkg
+from importlib import resources
 from .misc import find_position, gen_surface
 from .ramp_models import Ramp
 from .optical_models import gen_powers
@@ -50,7 +52,8 @@ class Exposure(zdx.Base):
         self.parang = np.array(file[0].header["ROLL_REF"], float)
 
         # Make sure we have all the baxpixels
-        static_badpix = np.load(pkg.resource_filename(__name__, "data/badpix.npy"))
+        # static_badpix = np.load(pkg.resource_filename(__name__, "data/badpix.npy"))
+        static_badpix = np.load(resources.files(__package__) / "data" / "badpix.npy")
         pipeline_badpix = np.array(file["BADPIX"].data, bool)
         self.badpix = static_badpix | pipeline_badpix
 

@@ -19,6 +19,8 @@ dependencies = [
   "interpax",
   "IPython",
   "matplotlib",
+  "optimistix",
+  "drpangloss@git+https://github.com/benjaminpope/drpangloss@main",
 ]
 
 classifiers=[
