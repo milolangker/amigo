@@ -1,0 +1,30 @@
+site_name: Amigo Documentation
+site_description: API reference and user guides for the Amigo package.
+repo_url: https://github.com/LouisDesdoigts/amigo
+repo_name: LouisDesdoigts/amigo
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - search.suggest
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: blue
+      accent: pink
+
+nav:
+  - Home: index.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            docstring_style: numpy
+            docstring_section_style: list
+            merge_init_into_class: true
