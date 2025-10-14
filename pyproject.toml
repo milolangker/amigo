@@ -20,6 +20,7 @@ dependencies = [
   "IPython",
   "matplotlib",
   "optimistix",
+  "chainconsumer",
   "drpangloss@git+https://github.com/benjaminpope/drpangloss@main",
 ]
 
