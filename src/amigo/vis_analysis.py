@@ -9,7 +9,8 @@ from jax import jit, vmap
 import dLux.utils as dlu
 from amigo.misc import interp
 from drpangloss.grid_fit import azimuthalAverage
-from numpyro.distributions.util import gammaincinv
+
+# from numpyro.distributions.util import gammaincinv
 from amigo.stats import orthogonalise
 from copy import deepcopy
 
@@ -242,15 +243,15 @@ def ruffio_upperlimit(mean, sigma, percentile, epsilon=1e-12):
     return limit
 
 
-def chi2ppf(p, df):
-    return gammaincinv(df / 2.0, p) * 2
+# def chi2ppf(p, df):
+# return gammaincinv(df / 2.0, p) * 2
 
 
-def nsigma(chi2r_test, chi2r_true, ndof):
-    q = jax.scipy.stats.chi2.cdf(ndof * chi2r_test / chi2r_true, ndof)
-    p = 1.0 - q
-    nsigma = np.sqrt(chi2ppf(p, 1.0))
-    return nsigma
+# def nsigma(chi2r_test, chi2r_true, ndof):
+#     q = jax.scipy.stats.chi2.cdf(ndof * chi2r_test / chi2r_true, ndof)
+#     p = 1.0 - q
+#     nsigma = np.sqrt(chi2ppf(p, 1.0))
+#     return nsigma
 
 
 def solve(fn, solver, x0, args, max_steps=512):
@@ -327,16 +328,16 @@ def analyse_vis(
     ndof = oi_obj.vis.size + oi_obj.phi.size  # number of degrees of freedom
     # chi2_bin = lambda values: -2 * zscore_fn(values) / ndof
     chi2_bin = lambda values: -2 * chi2_fn(values) / ndof
-    chi2_null = chi2_bin([0.0, 0.0, 0.0])
+    chi2_bin([0.0, 0.0, 0.0])
 
-    # Absil upper limits fit
-    solver = optx.BFGS(rtol=tol, atol=tol)
-    loss = lambda values: (nsigma(chi2_bin(values) / ndof, chi2_null / ndof, ndof) - n_sigma) ** 2
-    opt_fn = lambda flux, coords: loss([*coords, flux])
-    fit_fn = lambda values: solve(
-        opt_fn, solver, values[2], (values[0], values[1]), max_steps=max_steps
-    )
-    loss, limits_im = batched_grid(jit(vmap(fit_fn)), mle_param_grid, n_batch=n_batch)
+    # # Absil upper limits fit
+    # solver = optx.BFGS(rtol=tol, atol=tol)
+    # loss = lambda values:(nsigma(chi2_bin(values) / ndof, chi2_null / ndof, ndof) - n_sigma) ** 2
+    # opt_fn = lambda flux, coords: loss([*coords, flux])
+    # fit_fn = lambda values: solve(
+    #     opt_fn, solver, values[2], (values[0], values[1]), max_steps=max_steps
+    # )
+    # loss, limits_im = batched_grid(jit(vmap(fit_fn)), mle_param_grid, n_batch=n_batch)
 
     # Upsample the log-likelihood and contrast images via interpolation
     knots = dlu.pixel_coords(n_grid, 2 * size)
@@ -345,7 +346,7 @@ def analyse_vis(
     contrast_im = interp(contrast_im, knots, sample_pts, method="cubic", fill=np.nan)
     sigma_im = interp(sigma_im, knots, sample_pts, method="cubic", fill=np.nan)
     ruffio_im = interp(ruffio_im, knots, sample_pts, method="cubic", fill=np.nan)
-    limits_im = interp(limits_im, knots, sample_pts, method="cubic", fill=np.nan)
+    # limits_im = interp(limits_im, knots, sample_pts, method="cubic", fill=np.nan)
 
     # # Clip the limits
     # limits_im = np.where(limits_im < 0, 1e-6, limits_im)  # clip to 0
@@ -371,7 +372,7 @@ def analyse_vis(
         "contrast_im": np.where(rmask, np.nan, contrast_im),
         "sigma_im": np.where(rmask, np.nan, sigma_im),
         "ruffio_im": np.where(rmask, np.nan, ruffio_im),
-        "limits_im": np.where(rmask, np.nan, limits_im),
+        # "limits_im": np.where(rmask, np.nan, limits_im),
         "ruffio": ruffio,
         "n_sigma": n_sigma,
     }
