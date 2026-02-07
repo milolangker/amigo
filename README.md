@@ -1,7 +1,6 @@
 # AMIGO
 
-AMIGO: Aperture Masking Interferometry Generative Observations. An end-to-end differentiable modelling pipeline for JWST AMI go brrrrrrrr
-
+AMIGO: Aperture Masking Interferometry Generative Observations. An end-to-end differentiable modelling pipeline for the JWST Interferometer.
 
 The [documentation](https://louisdesdoigts.github.io/amigo/) is currently under development, however we currently provide:
 
