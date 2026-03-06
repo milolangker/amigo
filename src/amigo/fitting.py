@@ -114,7 +114,7 @@ def get_update_fn(optim, norm_fn=None):
         # re-update the opt_state to reflect this. Im not sure how this would affect
         # the opt_state object though
         updates, opt_state = optim.update(param_grads, opt_state, model_params)
-        model_params = zdx.apply_updates(model_params, updates)
+        model_params = optax.apply_updates(model_params, updates)
 
         if norm_fn is not None:
             model_params, args = norm_fn(model_params, args)
