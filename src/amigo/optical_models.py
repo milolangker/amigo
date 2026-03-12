@@ -546,7 +546,7 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
         # Initialise wavefront
         # wf = dl.Wavefront(self.wf_npixels, self.diameter, wavelength)
         wf = Wavefront(self.wf_npixels, self.diameter, wavelength)
-        wf = wf.tilt(offset)
+        wf = wf.tilt(-offset) # for the new propagator
 
         # Apply layers
         for layer in list(self.layers.values()):
@@ -559,32 +559,22 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
 
         # This should be moved into dLux as a fix
         if self.defocus_type == "phase":
-            first, second = dlu.propagation.fresnel_phase_factors(
-                wavelength=wf.wavelength * 1e6,
-                npixels_in=wf.npixels,
-                pixel_scale_in=wf.pixel_scale * 1e6,
-                focal_shift=self.defocus * 1e6,
-                # In theory these do not matter since the second factor only modifies
-                # the phase and so the PSF is unaffected. The 18 (microns) is the
-                # pixel scale but should cancel out.
-                npixels_out=psf_npixels,
-                pixel_scale_out=18 / self.oversample,
-                focal_length=18 / dlu.arcsec2rad(pixel_scale),
-            )
-
-            wf *= first
-            wf = wf.propagate(psf_npixels, pixel_scale)
-            wf *= second
+            coords = dlu.pixel_coords(wf.npixels, wf.diameter)
+            r2 = (coords**2).sum(0)
+            z = 1e-6 * self.defocus
+            phase = np.pi * z * r2 / (wavelength)
+            wf = wf.add_phase(phase)
+            wf = propagate_fraunhofer_cutouts(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
 
         if self.defocus_type == "fft":
             # Default to um defocus
             # wf = wf.propagate(psf_npixels, pixel_scale)
-            wf = propagate_sparse(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
+            wf = propagate_fraunhofer_cutouts(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
             wf = plane_to_plane(wf, 1e-6 * self.defocus, pad=2)
 
         if self.defocus_type is None:
             # wf = wf.propagate(psf_npixels, pixel_scale)
-            wf = propagate_sparse(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
+            wf = propagate_fraunhofer_cutouts(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
 
         # Upsample and then downsample to get more PSF precision
         knots = dlu.pixel_coords(psf_npixels, 2)
@@ -712,3 +702,103 @@ def propagate_sparse(
         ["amplitude", "phase", "pixel_scale", "plane", "units"],
         [np.abs(phasor), np.angle(phasor), pixel_scale, plane, units],
     )
+
+from abcdLux.fraunhofer import fraunhofer_prop
+
+def _slice_patch(arr: Array, corner: Array, size: int) -> Array:
+    """
+    Slice a square patch from a 2D array.
+
+    Parameters
+    ----------
+    arr : Array
+        Input array of shape (Ny, Nx).
+    corner : Array
+        Patch corner (j, i), where j is x-index and i is y-index.
+    size : int
+        Patch size.
+
+    Returns
+    -------
+    Array
+        Patch of shape (size, size).
+    """
+    j, i = corner
+    return dynamic_slice(arr, (i, j), (size, size))
+
+
+def _slice_axis_patch(axis: Array, start: int, size: int) -> Array:
+    """
+    Slice a 1D coordinate vector.
+    """
+    return dynamic_slice(axis, (start,), (size,))
+
+
+def propagate_fraunhofer_cutouts(
+    wavefront,
+    npixels: int,
+    pixel_scale: float,
+    corners: Array,
+    size: int,
+):
+    """
+    Sparse Fraunhofer propagation from dense pupil cutouts.
+
+    Parameters
+    ----------
+    wavefront : Wavefront
+        Dense pupil-plane wavefront after all layers have been applied.
+    npixels : int
+        Output focal-plane size.
+    pixel_scale : float
+        Output focal-plane sampling in radians/pixel.
+    corners : Array
+        Array of cutout corners with shape (Nh, 2), in (j, i) ordering.
+    size : int
+        Square cutout size in pupil pixels.
+
+    Returns
+    -------
+    Wavefront
+        Dense focal-plane wavefront after coherent summation of cutout fields.
+
+    Notes
+    -----
+    This assumes angular Fraunhofer propagation, so `f=1.0` is passed to
+    `fraunhofer_prop`, and the output sampling is angular.
+    """
+    # Full dense pupil field
+    phasor = wavefront.phasor  # (Ny, Nx)
+
+    # Full dense pupil coordinate axes
+    coords = dlu.pixel_coords(wavefront.npixels, wavefront.diameter)
+    x_full = coords[0, 0, :]
+    y_full = coords[1, :, 0]
+
+    spec_out = (npixels, pixel_scale)
+
+    def prop_one(corner):
+        j, i = corner
+
+        u_cut = _slice_patch(phasor, corner, size)
+        x_cut = _slice_axis_patch(x_full, j, size)
+        y_cut = _slice_axis_patch(y_full, i, size)
+
+        return fraunhofer_prop(
+            u_pupil=u_cut,
+            spec_in=(x_cut, y_cut),
+            spec_out=spec_out,
+            lam=wavefront.wavelength,
+            f=1.0,
+        )
+
+    # Propagate each patch and sum coherently
+    hole_fields = vmap(prop_one)(corners)
+    field = hole_fields.sum(axis=0)
+    pixel_scale = np.asarray(pixel_scale, float)
+    # Build a standard dense focal-plane wavefront
+    wf = wavefront.set(
+        ["amplitude", "phase", "pixel_scale", "plane", "units"],
+        [np.abs(field), -np.angle(field), pixel_scale, "Focal", "Angular"],
+    )
+    return wf
