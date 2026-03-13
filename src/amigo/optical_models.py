@@ -461,7 +461,7 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
         polike=False,
         static=True,
     ):
-        if defocus_type not in ["phase", "fft", None]:
+        if defocus_type not in ["phase", "fft", None, 'phase2']:
             raise ValueError("defocus_type must be one of 'phase', 'fft', or None")
         self.filters = filters
         self.wf_npixels = wf_npixels
@@ -544,9 +544,8 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
             if `return_wf` is True, returns the Wavefront object.
         """
         # Initialise wavefront
-        # wf = dl.Wavefront(self.wf_npixels, self.diameter, wavelength)
         wf = Wavefront(self.wf_npixels, self.diameter, wavelength)
-        wf = wf.tilt(-offset) # for the new propagator
+        wf = wf.tilt(offset)
 
         # Apply layers
         for layer in list(self.layers.values()):
@@ -562,19 +561,17 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
             coords = dlu.pixel_coords(wf.npixels, wf.diameter)
             r2 = (coords**2).sum(0)
             z = 1e-6 * self.defocus
-            phase = np.pi * z * r2 / (wavelength)
+            phase = -np.pi * z * r2 / (wavelength)
             wf = wf.add_phase(phase)
-            wf = propagate_fraunhofer_cutouts(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
+            wf = propagate_sparse(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
 
         if self.defocus_type == "fft":
             # Default to um defocus
-            # wf = wf.propagate(psf_npixels, pixel_scale)
-            wf = propagate_fraunhofer_cutouts(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
+            wf = propagate_sparse(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
             wf = plane_to_plane(wf, 1e-6 * self.defocus, pad=2)
 
         if self.defocus_type is None:
-            # wf = wf.propagate(psf_npixels, pixel_scale)
-            wf = propagate_fraunhofer_cutouts(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
+            wf = propagate_sparse(wf, psf_npixels, pixel_scale, corners=self.corners, size=180)
 
         # Upsample and then downsample to get more PSF precision
         knots = dlu.pixel_coords(psf_npixels, 2)
@@ -609,100 +606,6 @@ class Wavefront(dl.Wavefront):
             [pixel_scale, amplitude, phase],
         )
 
-
-def SparseMFT(
-    phasor,
-    wavelength: float,
-    pixel_scale_in: float,
-    npixels_out: int,
-    pixel_scale_out: float,
-    focal_length: float = None,
-    shift=np.zeros(2),
-    pixel: bool = True,
-    inverse: bool = False,
-    corner=None,
-    size=None,
-):
-    # Get parameters
-    npixels_in = phasor.shape[-1]
-    if not pixel:
-        shift /= pixel_scale_out
-
-    # Alias the transfer matrix function
-    get_tf_mat = lambda s: transfer_matrix(
-        wavelength,
-        npixels_in,
-        pixel_scale_in,
-        npixels_out,
-        pixel_scale_out,
-        s,
-        focal_length,
-        0.0,
-        inverse,
-    )
-
-    # Get transfer matrices and propagate
-    x_mat, y_mat = vmap(get_tf_mat)(shift)
-
-    # Cut the bits out
-    if corner is not None:
-        x, y = corner
-        x_mat = dynamic_slice(x_mat, (x, 0), (size, x_mat.shape[1]))
-        y_mat = dynamic_slice(y_mat, (y, 0), (size, y_mat.shape[1]))
-        phasor = dynamic_slice(phasor, (y, x), (size, size))
-
-    # Propagate
-    phasor = (y_mat.T @ phasor) @ x_mat
-
-    # Normalise
-    nfringes = calc_nfringes(
-        wavelength,
-        npixels_in,
-        pixel_scale_in,
-        npixels_out,
-        pixel_scale_out,
-        focal_length,
-    )
-    phasor *= np.exp(np.log(nfringes) - (np.log(npixels_in) + np.log(npixels_out)))
-
-    return phasor
-
-
-def propagate_sparse(
-    wavefront,
-    npixels: int,
-    pixel_scale: float,
-    focal_length: float = None,
-    shift: Array = np.zeros(2),
-    pixel: bool = True,
-    corners=None,
-    size=None,
-):
-
-    inverse, plane, units = wavefront._prep_prop(focal_length)
-
-    # Enforce array so output can be vectorised by vmap
-    pixel_scale = np.asarray(pixel_scale, float)
-
-    # Calculate
-    phasor = SparseMFT(
-        wavefront.phasor,
-        wavefront.wavelength,
-        wavefront.pixel_scale,
-        npixels,
-        pixel_scale,
-        focal_length,
-        shift,
-        pixel,
-        inverse,
-    )
-
-    # Update
-    return wavefront.set(
-        ["amplitude", "phase", "pixel_scale", "plane", "units"],
-        [np.abs(phasor), np.angle(phasor), pixel_scale, plane, units],
-    )
-
 from abcdLux.fraunhofer import fraunhofer_prop
 
 def _slice_patch(arr: Array, corner: Array, size: int) -> Array:
@@ -734,7 +637,7 @@ def _slice_axis_patch(axis: Array, start: int, size: int) -> Array:
     return dynamic_slice(axis, (start,), (size,))
 
 
-def propagate_fraunhofer_cutouts(
+def propagate_sparse(
     wavefront,
     npixels: int,
     pixel_scale: float,
@@ -789,7 +692,7 @@ def propagate_fraunhofer_cutouts(
             spec_in=(x_cut, y_cut),
             spec_out=spec_out,
             lam=wavefront.wavelength,
-            f=1.0,
+            f=-1.0,
         )
 
     # Propagate each patch and sum coherently
@@ -799,6 +702,6 @@ def propagate_fraunhofer_cutouts(
     # Build a standard dense focal-plane wavefront
     wf = wavefront.set(
         ["amplitude", "phase", "pixel_scale", "plane", "units"],
-        [np.abs(field), -np.angle(field), pixel_scale, "Focal", "Angular"],
+        [np.abs(field), np.angle(field), pixel_scale, "Focal", "Angular"],
     )
     return wf
