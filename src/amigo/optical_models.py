@@ -461,7 +461,7 @@ class AMIOptics(dl.optical_systems.AngularOpticalSystem):
         polike=False,
         static=True,
     ):
-        if defocus_type not in ["phase", "fft", None, 'phase2']:
+        if defocus_type not in ["phase", "fft", None]:
             raise ValueError("defocus_type must be one of 'phase', 'fft', or None")
         self.filters = filters
         self.wf_npixels = wf_npixels
